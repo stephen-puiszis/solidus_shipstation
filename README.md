@@ -1,5 +1,6 @@
 Solidus/ShipStation Integration
 ==============================
+[![Circle CI](https://circleci.com/gh/boomerdigital/solidus_shipstation.svg?style=svg)](https://circleci.com/gh/boomerdigital/solidus_shipstation) [![Code Climate](https://codeclimate.com/github/boomerdigital/solidus_shipstation/badges/gpa.svg)](https://codeclimate.com/github/boomerdigital/solidus_shipstation)
 
 This gem integrates [ShipStation](http://www.shipstation.com) with [Solidus](http://solidus.io), a fork of [Spree](http://spreecommerce.com). It enables ShipStation to pull shipments from the system and update tracking numbers. This integration is a fork of http://github.com/DynamoMTL/spree_shipstation to make compatible with Solidus and Rails 4.2+.
 
@@ -49,7 +50,7 @@ localhost:3000/shipstation?action=shipnotify&order_number=ABC123&carrier=USPS&se
 Add `solidus_shipstation` to your Gemfile:
 
 ```ruby
-gem "solidus_shipstation"
+gem "solidus_shipstation", github: 'boomerdigital/solidus_shipstation'
 ```
 
 Then, bundle install
@@ -77,6 +78,8 @@ Spree.config do |config|
   # Turn on/off SSL requirepments for testing and development purposes
   config.shipstation_ssl_encrypted = !Rails.env.development?
 
+  # Captures payment when ShipStation notifies a shipping label creation, defaults to false
+  config.shipstation_capture_at_notification = false
 
   # Spree::Core related configuration
   # Both of these Spree::Core configuration options will affect which shipment records
@@ -106,11 +109,20 @@ Shipped                  | shipped            | shipped
 Cancelled                | cancelled          | cancelled
 On-Hold                  | on-hold            | pending (won't appear in API response)
 
+### Payment Capture
+
+By default the shipments exported are only the ones that have the state of `ready`, for Spree that means
+that the shipment has backordered inventory units and the order is paid for. By setting
+`require_payment_to_ship` to `false` and `shipstation_capture_at_notification` to `true`
+this extension will export shipments that are in the state of `pending` and will
+try to capture payments when a shipnotify notification is received.
+
 ## Caveats
 
 1. Removed [#send_shipped_email](https://github.com/DynamoMTL/spree_shipstation/blob/master/app/models/spree/shipment_decorator.rb#L9), which was previously available in `spree_shipstation`
 2. If you change the shipping method of an order in ShipStation, the change will not be reflected in Spree and the tracking link might not work properly.
 3. Removed the ability to use `Spree::Order.number` as the ShipStation order number. We now use `Spree::Shipment.number`. This was previously available in `spree_shipstation`
+4. When capture of payments is enabled any error will prevent the update of the tracking number.
 
 ## Testing
 
@@ -138,8 +150,6 @@ To run tests with guard:
 
 ## Future Work
 
-- Finish cleanup rspec depreciations
 - Improve documentation
-- Fix the QueryString route hack
 - Update legacy development patterns (ex: `class_eval`)
 - Update XML generation and parsing

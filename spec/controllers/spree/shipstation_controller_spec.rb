@@ -2,10 +2,12 @@ require 'spec_helper'
 
 describe Spree::ShipstationController, type: :controller do
   render_views
+  routes { Spree::Core::Engine.routes }
 
   before do
     Spree::Config.shipstation_ssl_encrypted = false # disable SSL for testing
-    described_class.stub(check_authorization: false, spree_current_user: FactoryGirl.create(:user))
+    allow(described_class).to receive(:check_authorization).and_return(false)
+    allow(described_class).to receive(:spree_current_user).and_return(FactoryGirl.create(:user))
     @request.env['HTTP_ACCEPT'] = 'application/xml'
   end
 
@@ -15,14 +17,13 @@ describe Spree::ShipstationController, type: :controller do
 
     describe '#export' do
       let(:schema) { 'spec/fixtures/shipstation_xml_schema.xsd' }
-      let(:order) { create(:order, completed_at: Time.now.utc) }
-      let!(:shipments) { create(:shipment, order: order) }
+      let(:order) { create(:order, state: 'complete', completed_at: Time.now.utc) }
+      let!(:shipments) { create(:shipment, state: 'ready', order: order) }
       let(:params) do
         {
           start_date: '01/01/2016 00:00',
           end_date: '12/31/2016 00:00',
-          format: 'xml',
-          use_route: :spree,
+          format: 'xml'
         }
       end
 
@@ -44,14 +45,14 @@ describe Spree::ShipstationController, type: :controller do
       #   which might not reflect reality in practice
       let(:order_number) { 'ABC123' }
       let(:tracking_number) { '123456' }
-      let(:order) { create(:order) }
+      let(:order) { create(:order, payment_state: 'paid') }
       let(:address) { create(:address) }
       let!(:shipment) { create(:shipment, tracking: nil, number: order_number, order: order, address: address) }
       let!(:inventory_unit) { create(:inventory_unit, order: order, shipment: shipment) }
 
       context 'shipment found' do
         let(:params) do
-          { order_number: order_number, tracking_number: tracking_number, use_route: :spree }
+          { order_number: order_number, tracking_number: tracking_number }
         end
 
         before do
@@ -76,7 +77,7 @@ describe Spree::ShipstationController, type: :controller do
 
       context 'shipment not found' do
         let(:invalid_params) do
-          { order_number: 'JJ123456', use_route: :spree }
+          { order_number: 'JJ123456' }
         end
         before { post :shipnotify, invalid_params }
 
@@ -86,15 +87,11 @@ describe Spree::ShipstationController, type: :controller do
         end
       end
     end
-
-    it 'doesnt know unknown' do
-      expect { post :unknown, use_route: :spree }.to raise_error(AbstractController::ActionNotFound)
-    end
   end
 
   context 'not logged in' do
     it 'returns error' do
-      get :export, use_route: :spree
+      get :export, format: 'xml'
 
       expect(response.code).to eq('401')
     end
